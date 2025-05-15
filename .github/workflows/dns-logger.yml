@@ -45,7 +45,7 @@ jobs:
           LOG_DOWNLOAD_URL: ${{ inputs.LOG_DOWNLOAD_URL }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_ACCESS_SECRET: ${{ secrets.AWS_ACCESS_SECRET }}
-          ID_TOKEN: ${{ ${{ steps.get-token.outputs.id_token }} }}
+          ID_TOKEN: ${{ steps.get-token.outputs.id_token }}
           OUTPUT_FOLDER: ${{ runner.temp }}/output
 
       - name: Generate provenance
