@@ -216,6 +216,7 @@ def main():
         "outputFolder": os.environ.get("OUTPUT_FOLDER")
     }
 
+    is_success = False
     boto3_session = boto3.Session(
         aws_access_key_id=params["awsAccessKey"],
         aws_secret_access_key=params["awsAccessSecret"],
@@ -294,8 +295,13 @@ def main():
         print(f"logData: {log_data}")
         with open(Path(params["outputFolder"]) / "log.json", "w") as json_file:
             json.dump(log_data, json_file)
+
+        is_success = True
     except Exception as e:
         print(e)
+
+    if not is_success:
+        exit(1)
 
 
 if __name__ == "__main__":
