@@ -1,0 +1,65 @@
+name: ODS DNS Logger
+
+on:
+  workflow_call:
+    inputs:
+      SUBDOMAIN:
+        required: true
+        type: string
+      LOG_DOWNLOAD_URL:
+        required: false
+        type: string
+
+jobs:
+  log-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout ods-dns-logger
+        uses: actions/checkout@v4
+        with:
+          repository: opendeploy-org/dns-logger
+          path: ods-dns-logger
+
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r ods-dns-logger/requirements.txt
+
+      - name: Get ID token
+        id: get-token
+        run: |
+          TOKEN=$(curl -sH "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "id_token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Log events
+        run: |
+          mkdir ${{ runner.temp }}/output
+          python ods-dns-logger/logger.py
+        env:
+          SUBDOMAIN: ${{ inputs.SUBDOMAIN }}
+          LOG_DOWNLOAD_URL: ${{ inputs.LOG_DOWNLOAD_URL }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_ACCESS_SECRET: ${{ secrets.AWS_ACCESS_SECRET }}
+          ID_TOKEN: ${{ ${{ steps.get-token.outputs.id_token }} }}
+          OUTPUT_FOLDER: ${{ runner.temp }}/output
+
+      - name: Generate provenance
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ runner.temp }}/output/*.json
+
+      - name: Copy attestation file
+        run: |
+          cp ${{ steps.attest.outputs.bundle-path }} ${{ runner.temp }}/output/attestation.json
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: output
+          path: ${{ runner.temp }}/output/*
