@@ -224,7 +224,10 @@ def main():
 
         if not params["logDownloadURL"]:
             # first time to create a log
+            print("Checking domain initial state")
             nameservers = check_domain_init_state(boto3_session, top_domain)
+
+            print("Checking DNS record initial state")
             hosted_zone_id = check_dns_record_init_state(
                 boto3_session, top_domain, sub_domain)
 
@@ -243,8 +246,11 @@ def main():
                 log_data["logs"][log_event] = []
         else:
             # download and verify past log data
+            print("Loading past log data")
             past_log_data, past_log_attestation = load_log_from_url(
                 params["logDownloadURL"])
+
+            print("Verifying past log data")
             verify_past_log(params["idToken"],
                             past_log_data, past_log_attestation)
 
@@ -269,12 +275,13 @@ def main():
             }
 
             # lookup DNS events
+            lookup_start_time = datetime.fromtimestamp(
+                past_log_data["lastLogTime"], tz=timezone.utc) - timedelta(hours=6)
             for event_name in LOG_EVENTS:
                 if event_name not in past_log_data["logs"]:
-                    raise Exception(f"Event record is missing from past log")
+                    raise Exception(f"Event type is missing from past log")
 
-                lookup_start_time = datetime.fromtimestamp(
-                    past_log_data["lastLogTime"], tz=timezone.utc) - timedelta(hours=6)
+                print(f"Looking up {event_name} evetns")
                 event_data = lookup_event_records(
                     boto3_session, event_name, lookup_start_time)
 
