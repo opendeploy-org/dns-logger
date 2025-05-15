@@ -129,23 +129,20 @@ def verify_past_log(id_token, log_data, log_attestation):
                 json.dump(log_attestation, f)
 
             # execute gh attestation verify
-            marker = "Verification succeeded!"
             cmd = [
                 "gh", "attestation", "verify",
                 "--owner", owner,
                 "-b", attestation_path,
                 log_path,
-                "--signer-workflow", "opendeploy-org/dns-logger/.github/workflows/dns-logger.yml"
+                "--signer-workflow", "opendeploy-org/dns-logger/.github/workflows/dns-logger.yml",
+                "--format", "json"
             ]
             cmd_output = subprocess.run(
                 cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout
 
-            if marker not in cmd_output:
-                raise Exception(
-                    "Verification succeeded marker not found in output")
+            print(f"ghOutput: {cmd_output}")
 
-            attest_result = json.loads(
-                cmd_output.stdout.split(marker, 1)[-1].strip())[0]
+            attest_result = json.loads(cmd_output)[0]
             print(f"attestResult: {attest_result}")
             signer_commit_sha = attest_result["verificationResult"]["signature"]["buildSignerDigest"]
 
