@@ -144,7 +144,7 @@ def verify_past_log(id_token, log_data, log_attestation):
 
             attest_result = json.loads(cmd_output)[0]
             print(f"attestResult: {attest_result}")
-            signer_commit_sha = attest_result["verificationResult"]["signature"]["buildSignerDigest"]
+            signer_commit_sha = attest_result["verificationResult"]["signature"]["certificate"]["buildSignerDigest"]
 
             # check the signer commmit sha of attestation
             if signer_commit_sha != curr_commit_sha and signer_commit_sha not in TRUSTED_COMMIT_SHA:
