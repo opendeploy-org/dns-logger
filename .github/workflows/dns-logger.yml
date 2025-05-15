@@ -9,6 +9,11 @@ on:
       LOG_DOWNLOAD_URL:
         required: false
         type: string
+    secrets:
+      AWS_ACCESS_KEY:
+        required: true
+      AWS_ACCESS_SECRET:
+        required: true
 
 jobs:
   log-job:
