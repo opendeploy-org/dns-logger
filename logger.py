@@ -105,7 +105,6 @@ def load_log_from_url(log_dwonload_url):
 
 def extract_workflow_envs(id_token):
     payload = jwt.decode(id_token, options={"verify_signature": False})
-    print(payload)
 
     return payload["repository_owner"], payload["job_workflow_sha"]
 
@@ -113,9 +112,6 @@ def extract_workflow_envs(id_token):
 def verify_past_log(id_token, log_data, log_attestation):
     try:
         owner, curr_commit_sha = extract_workflow_envs(id_token)
-
-        print(f"Owner: {owner}")
-        print(f"CommitSha: {curr_commit_sha}")
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # save the log data and attestation to temp folder
@@ -140,10 +136,7 @@ def verify_past_log(id_token, log_data, log_attestation):
             cmd_output = subprocess.run(
                 cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout
 
-            print(f"ghOutput: {cmd_output}")
-
             attest_result = json.loads(cmd_output)[0]
-            print(f"attestResult: {attest_result}")
             signer_commit_sha = attest_result["verificationResult"]["signature"]["certificate"]["buildSignerDigest"]
 
             # check the signer commmit sha of attestation
@@ -289,7 +282,6 @@ def main():
                     past_log_data["logs"][event_name], event_data)
 
         # save log data to output folder
-        print(f"logData: {log_data}")
         with open(Path(params["outputFolder"]) / "log.json", "w") as json_file:
             json.dump(log_data, json_file)
 
