@@ -212,7 +212,7 @@ def main():
         "logDownloadURL": os.environ.get("LOG_DOWNLOAD_URL"),
         "awsAccessKey": os.environ.get("AWS_ACCESS_KEY"),
         "awsAccessSecret": os.environ.get("AWS_ACCESS_SECRET"),
-        "idToken": os.environ.get("id-token"),
+        "idToken": os.environ.get("ID_TOKEN"),
         "outputFolder": os.environ.get("OUTPUT_FOLDER")
     }
 
