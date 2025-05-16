@@ -43,6 +43,7 @@ jobs:
 
       - name: Log events
         run: |
+          gh --version
           mkdir ${{ runner.temp }}/output
           python ods-dns-logger/logger.py
         env:
