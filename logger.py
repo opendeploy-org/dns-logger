@@ -32,24 +32,20 @@ def check_domain_init_state(boto3_session, top_domain):
     try:
         client = boto3_session.client(
             "route53domains", region_name="us-east-1")
+        paginator = client.get_paginator("list_domains")
 
-        # check if the domain exists
-        list_res = client.list_domains()
+        for page in paginator.paginate():
+            for domain in page["Domains"]:
+                if domain["DomainName"] == top_domain:
+                    if not domain["TransferLock"]:
+                        raise Exception("Transfer lock is disabled")
 
-        for domain in list_res["Domains"]:
-            if domain["DomainName"] == top_domain:
-                # check the transfer lock status
-                if domain["TransferLock"]:
-                    break
-                else:
-                    raise Exception(f"Transfer lock is disabled")
-        else:
-            raise Exception(f"Unable to find domain")
+                    # Get domain details
+                    detail_res = client.get_domain_detail(
+                        DomainName=top_domain)
+                    return detail_res["Nameservers"]
+        raise Exception("Unable to find domain")
 
-        # get nameservers
-        detail_res = client.get_domain_detail(DomainName=top_domain)
-
-        return detail_res["Nameservers"]
     except Exception as e:
         raise Exception(f"Failed to check domain initial state: {e}")
 
@@ -57,26 +53,27 @@ def check_domain_init_state(boto3_session, top_domain):
 def check_dns_record_init_state(boto3_session, top_domain, sub_domain):
     try:
         client = boto3_session.client("route53")
+        paginator = client.get_paginator("list_hosted_zones")
 
         # find hosted zones by root domain
-        hosted_zones_res = client.list_hosted_zones()
+        for page in paginator.paginate():
+            for hosted_zone in page["HostedZones"]:
+                if hosted_zone["Name"].rstrip(".") == top_domain.rstrip("."):
+                    hosted_zone_id = hosted_zone["Id"].split("/")[-1]
 
-        for hosted_zone in hosted_zones_res["HostedZones"]:
-            if hosted_zone["Name"].rstrip(".") == top_domain.rstrip("."):
-                hosted_zone_id = hosted_zone["Id"].split("/")[-1]
+                    # check that the subdomain does not have any A/AAAA/MX/CNAME/SRV DNS records
+                    record_sets_res = client.list_resource_record_sets(
+                        HostedZoneId=hosted_zone_id,
+                    )
 
-                # check that the subdomain does not have any A/AAAA/MX/CNAME/SRV DNS records
-                record_sets_res = client.list_resource_record_sets(
-                    HostedZoneId=hosted_zone_id,
-                )
+                    for record_set in record_sets_res["ResourceRecordSets"]:
+                        if record_set["Name"].rstrip(".") == sub_domain.rstrip(".") and record_set["Type"] in ["A", "AAAA", "MX", "CNAME", "SRV"]:
+                            raise Exception(
+                                "Invalid initial state of DNS record")
 
-                for record_set in record_sets_res["ResourceRecordSets"]:
-                    if record_set["Name"].rstrip(".") == sub_domain.rstrip(".") and record_set["Type"] in ["A", "AAAA", "MX", "CNAME", "SRV"]:
-                        raise Exception("Invalid initial state of DNS record")
+                    return hosted_zone_id
 
-                return hosted_zone_id
-        else:
-            raise Exception("Unable to find hosted zone")
+        raise Exception("Unable to find hosted zone")
     except Exception as e:
         raise Exception(f"Failed to check DNS record initial state: {e}")
 
@@ -146,39 +143,24 @@ def verify_past_log(id_token, log_data, log_attestation):
         raise Exception(f"Failed to validate past log: {e}")
 
 
-def lookup_event_records(boto3_session, event_name, start_time):
-    client = boto3_session.client("cloudtrail", region_name="us-east-1")
-
+def lookup_event_records(boto3_session, event_name, start_time, region):
     try:
+        client = boto3_session.client("cloudtrail", region_name=region)
+        paginator = client.get_paginator("lookup_events")
+
         events = []
-        response = client.lookup_events(
-            LookupAttributes=[
-                {
-                    "AttributeKey": "EventName",
-                    "AttributeValue": event_name
-                }
-            ],
+        page_iterator = paginator.paginate(
+            LookupAttributes=[{
+                "AttributeKey": "EventName",
+                "AttributeValue": event_name
+            }],
             StartTime=start_time
         )
 
-        while True:
-            for event in response["Events"]:
+        for page in page_iterator:
+            for event in page["Events"]:
                 event_detail = json.loads(event["CloudTrailEvent"])
                 events.append(event_detail)
-
-            if "NextToken" in response:
-                response = client.lookup_events(
-                    LookupAttributes=[
-                        {
-                            "AttributeKey": "EventName",
-                            "AttributeValue": event_name
-                        }
-                    ],
-                    StartTime=start_time,
-                    NextToken=response["NextToken"]
-                )
-            else:
-                break
 
         return events
     except Exception as e:
@@ -214,13 +196,13 @@ def main():
 
     try:
         log_data = None
+        curr_time = int(time.time())
+        account_id = get_account_id(boto3_session)
 
         # parse subdomain
         ext_result = tldextract.extract(params["subdomain"])
         top_domain = ext_result.top_domain_under_public_suffix
         sub_domain = ext_result.fqdn
-        curr_time = int(time.time())
-        account_id = get_account_id(boto3_session)
 
         if not params["logDownloadURL"]:
             # first time to create a log
