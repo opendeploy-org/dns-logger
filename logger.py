@@ -143,9 +143,9 @@ def verify_past_log(id_token, log_data, log_attestation):
         raise Exception(f"Failed to validate past log: {e}")
 
 
-def lookup_event_records(boto3_session, event_name, start_time, region):
+def lookup_event_records(boto3_session, event_name, start_time):
     try:
-        client = boto3_session.client("cloudtrail", region_name=region)
+        client = boto3_session.client("cloudtrail", region_name="us-east-1")
         paginator = client.get_paginator("lookup_events")
 
         events = []
