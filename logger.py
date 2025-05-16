@@ -130,8 +130,11 @@ def verify_past_log(id_token, log_data, log_attestation):
                 "--signer-workflow", "opendeploy-org/ods-dns-logger/.github/workflows/ods-dns-logger.yml",
                 "--format", "json"
             ]
-            cmd_output = subprocess.run(
-                cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout
+            cmd_res = subprocess.run(
+                cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            cmd_output = cmd_res.stdout
+
+            print(cmd_res.returncode)
 
             attest_result = json.loads(cmd_output)[0]
             signer_commit_sha = attest_result["verificationResult"]["signature"]["certificate"]["buildSignerDigest"]
