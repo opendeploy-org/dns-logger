@@ -127,7 +127,7 @@ def verify_past_log(id_token, log_data, log_attestation):
                 "--owner", owner,
                 "-b", attestation_path,
                 log_path,
-                "--signer-workflow", "opendeploy-org/dns-logger/.github/workflows/dns-logger.yml",
+                "--signer-workflow", "opendeploy-org/ods-dns-logger/.github/workflows/ods-dns-logger.yml",
                 "--format", "json"
             ]
             cmd_output = subprocess.run(

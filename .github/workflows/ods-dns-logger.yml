@@ -23,7 +23,7 @@ jobs:
       - name: Checkout ods-dns-logger
         uses: actions/checkout@v4
         with:
-          repository: opendeploy-org/dns-logger
+          repository: opendeploy-org/ods-dns-logger
           path: ods-dns-logger
 
       - name: Setup python
