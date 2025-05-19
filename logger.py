@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import json
 import time
 import zipfile
@@ -16,6 +17,7 @@ import tldextract
 LOG_EVENTS = ["DisableDomainTransferLock",
               "UpdateDomainNameservers", "ChangeResourceRecordSets"]
 TRUSTED_COMMIT_SHA = []
+AWS_NS_REGEX = re.compile(r"^ns-\d+\.awsdns-\d+\.(com|net|org|co\.uk)$")
 
 
 def get_account_id(boto3_session):
@@ -49,10 +51,13 @@ def check_dns_init_state(boto3_session, subdomain):
                     if not domain["TransferLock"]:
                         raise Exception("Transfer lock is disabled")
 
-                    # TODO: Check domain nameservers
+                    # check domain nameservers
                     domain_detail_res = register_client.get_domain_detail(
                         DomainName=root_domain)
-                    domain_nameservers = domain_detail_res["Nameservers"]
+
+                    for nameserver in domain_detail_res["Nameservers"]:
+                        if not AWS_NS_REGEX.match(nameserver["Name"]):
+                            raise Exception(f"The domain is using a non-AWS nameserver ({nameserver["Name"]})")
 
                     domain_founded = True
                     break
