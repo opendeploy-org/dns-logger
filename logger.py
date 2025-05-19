@@ -28,41 +28,51 @@ def get_account_id(boto3_session):
         raise Exception(f"Failed to get AWS account ID: {e}")
 
 
-def check_domain_init_state(boto3_session, top_domain):
+def check_dns_init_state(boto3_session, subdomain):
     try:
-        client = boto3_session.client(
-            "route53domains", region_name="us-east-1")
-        paginator = client.get_paginator("list_domains")
+        # parse subdomain
+        ext_result = tldextract.extract(subdomain)
+        root_domain = ext_result.top_domain_under_public_suffix
+        sub_domain = ext_result.fqdn
 
-        for page in paginator.paginate():
+        # check route53 register state
+        register_client = boto3_session.client(
+            "route53domains", region_name="us-east-1")
+        list_domains_paginator = register_client.get_paginator("list_domains")
+        domain_founded = False
+
+        # find registered domain by root domain
+        for page in list_domains_paginator.paginate():
             for domain in page["Domains"]:
-                if domain["DomainName"] == top_domain:
+                if domain["DomainName"] == root_domain:
+                    # check transfer lock state
                     if not domain["TransferLock"]:
                         raise Exception("Transfer lock is disabled")
 
-                    # Get domain details
-                    detail_res = client.get_domain_detail(
-                        DomainName=top_domain)
-                    return detail_res["Nameservers"]
-        raise Exception("Unable to find domain")
+                    # TODO: Check domain nameservers
+                    domain_detail_res = register_client.get_domain_detail(
+                        DomainName=root_domain)
+                    domain_nameservers = domain_detail_res["Nameservers"]
 
-    except Exception as e:
-        raise Exception(f"Failed to check domain initial state: {e}")
+                    domain_founded = True
+                    break
 
+        if not domain_founded:
+            raise Exception("Unable to find domain")
 
-def check_dns_record_init_state(boto3_session, top_domain, sub_domain):
-    try:
-        client = boto3_session.client("route53")
-        paginator = client.get_paginator("list_hosted_zones")
+        # check DNS record state
+        route53_client = boto3_session.client("route53")
+        hosted_zones_paginator = route53_client.get_paginator(
+            "list_hosted_zones")
 
         # find hosted zones by root domain
-        for page in paginator.paginate():
+        for page in hosted_zones_paginator.paginate():
             for hosted_zone in page["HostedZones"]:
-                if hosted_zone["Name"].rstrip(".") == top_domain.rstrip("."):
+                if hosted_zone["Name"].rstrip(".") == root_domain.rstrip("."):
                     hosted_zone_id = hosted_zone["Id"].split("/")[-1]
 
                     # check that the subdomain does not have any A/AAAA/MX/CNAME/SRV DNS records
-                    record_sets_res = client.list_resource_record_sets(
+                    record_sets_res = route53_client.list_resource_record_sets(
                         HostedZoneId=hosted_zone_id,
                     )
 
@@ -72,10 +82,8 @@ def check_dns_record_init_state(boto3_session, top_domain, sub_domain):
                                 "Invalid initial state of DNS record")
 
                     return hosted_zone_id
-
-        raise Exception("Unable to find hosted zone")
     except Exception as e:
-        raise Exception(f"Failed to check DNS record initial state: {e}")
+        raise Exception(f"Failed to check DNS initial state: {e}")
 
 
 def load_log_from_url(log_dwonload_url):
@@ -199,26 +207,17 @@ def main():
         curr_time = int(time.time())
         account_id = get_account_id(boto3_session)
 
-        # parse subdomain
-        ext_result = tldextract.extract(params["subdomain"])
-        top_domain = ext_result.top_domain_under_public_suffix
-        sub_domain = ext_result.fqdn
-
         if not params["logDownloadURL"]:
             # first time to create a log
-            print("Checking domain initial state")
-            nameservers = check_domain_init_state(boto3_session, top_domain)
-
-            print("Checking DNS record initial state")
-            hosted_zone_id = check_dns_record_init_state(
-                boto3_session, top_domain, sub_domain)
+            print("Checking DNS initial state")
+            hosted_zone_id = check_dns_init_state(
+                boto3_session, params["subdomain"])
 
             # create the log data
             log_data = {
-                "subdomain": sub_domain,
+                "subdomain": past_log_data["subdomain"],
                 "accountID": account_id,
                 "hostedZoneID": hosted_zone_id,
-                "nameservers": nameservers,
                 "firstLogTime": curr_time,
                 "lastLogTime": curr_time,
                 "logs": {}
@@ -237,7 +236,7 @@ def main():
             verify_past_log(params["idToken"],
                             past_log_data_btyes, past_log_attestation_btyes)
 
-            if sub_domain != past_log_data["subdomain"]:
+            if past_log_data["subdomain"] != past_log_data["subdomain"]:
                 raise Exception(f"The subdomain differs from past log data")
 
             if account_id != past_log_data["accountID"]:
@@ -251,7 +250,6 @@ def main():
                 "subdomain": past_log_data["subdomain"],
                 "accountID": past_log_data["accountID"],
                 "hostedZoneID": past_log_data["hostedZoneID"],
-                "nameservers": past_log_data["nameservers"],
                 "firstLogTime": past_log_data["firstLogTime"],
                 "lastLogTime": curr_time,
                 "logs": {}
