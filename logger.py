@@ -215,7 +215,7 @@ def main():
 
             # create the log data
             log_data = {
-                "subdomain": past_log_data["subdomain"],
+                "subdomain": params["subdomain"],
                 "accountID": account_id,
                 "hostedZoneID": hosted_zone_id,
                 "firstLogTime": curr_time,
