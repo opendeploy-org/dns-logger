@@ -94,8 +94,9 @@ def check_dns_init_state(boto3_session, subdomain):
                     )
 
                     for record_set in record_sets_res["ResourceRecordSets"]:
-                        print(record_set["Name"])
-                        if record_set["Name"].rstrip(".") == sub_domain.rstrip(".") and record_set["Name"].rstrip(".") in candidates:
+                        normalized_record_name = record_set["Name"].rstrip(
+                            ".").replace("\052", "*")
+                        if normalized_record_name == sub_domain.rstrip(".") and normalized_record_name in candidates:
                             if record_set["Type"] in ["A", "AAAA", "MX", "CNAME", "SRV"]:
                                 raise Exception(f"Invalid initial state of DNS record {record_set["Name"]} with type {record_set["Type"]}")
 
