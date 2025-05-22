@@ -30,6 +30,17 @@ def get_account_id(boto3_session):
         raise Exception(f"Failed to get AWS account ID: {e}")
 
 
+def gen_wildcard_candidates(subdomain):
+    labels = subdomain.strip('.').split('.')
+    candidates = []
+
+    for i in range(1, len(labels) - 1):
+        domain = ".".join(labels[i:])
+        candidates.append(f"*.{domain}")
+
+    return candidates
+
+
 def check_dns_init_state(boto3_session, subdomain):
     try:
         # parse subdomain
@@ -75,6 +86,7 @@ def check_dns_init_state(boto3_session, subdomain):
             for hosted_zone in page["HostedZones"]:
                 if hosted_zone["Name"].rstrip(".") == root_domain.rstrip("."):
                     hosted_zone_id = hosted_zone["Id"].split("/")[-1]
+                    candidates = gen_wildcard_candidates(sub_domain)
 
                     # check that the subdomain does not have any A/AAAA/MX/CNAME/SRV DNS records
                     record_sets_res = route53_client.list_resource_record_sets(
@@ -82,9 +94,10 @@ def check_dns_init_state(boto3_session, subdomain):
                     )
 
                     for record_set in record_sets_res["ResourceRecordSets"]:
-                        if record_set["Name"].rstrip(".") == sub_domain.rstrip(".") and record_set["Type"] in ["A", "AAAA", "MX", "CNAME", "SRV"]:
-                            raise Exception(
-                                "Invalid initial state of DNS record")
+                        print(record_set["Name"])
+                        if record_set["Name"].rstrip(".") == sub_domain.rstrip(".") and record_set["Name"].rstrip(".") in candidates:
+                            if record_set["Type"] in ["A", "AAAA", "MX", "CNAME", "SRV"]:
+                                raise Exception(f"Invalid initial state of DNS record {record_set["Name"]} with type {record_set["Type"]}")
 
                     return hosted_zone_id
     except Exception as e:
