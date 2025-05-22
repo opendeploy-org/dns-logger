@@ -226,6 +226,10 @@ def main():
         curr_time = int(time.time())
         account_id = get_account_id(boto3_session)
 
+        # check input params
+        if "*" in params["subdomain"]:
+            raise Exception(f"Wildcard domain is not supported")
+
         if not params["logDownloadURL"]:
             # first time to create a log
             print("Checking DNS initial state")
